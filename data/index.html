@@ -43,7 +43,6 @@
             min-height: 100vh;
         }
 
-        /* --- NAVBAR --- */
         .navbar {
             background: rgba(10, 15, 29, 0.85);
             backdrop-filter: blur(12px);
@@ -86,18 +85,12 @@
             transition: all 0.2s ease;
         }
 
-        .nav-tab-btn:hover {
-            color: var(--text-primary);
-            background: rgba(255, 255, 255, 0.05);
-        }
-
         .nav-tab-btn.active {
             color: var(--success-color);
             background: rgba(56, 189, 248, 0.1);
             border: 1px solid rgba(56, 189, 248, 0.2);
         }
 
-        /* --- CONTENIDO PRINCIPAL --- */
         .main-container {
             flex: 1;
             display: flex;
@@ -116,7 +109,6 @@
             display: block;
         }
 
-        /* --- TARJETA Y FORMULARIO --- */
         .card {
             background: var(--card-bg);
             backdrop-filter: blur(12px);
@@ -129,19 +121,14 @@
             transition: border-color 0.3s ease;
         }
 
-        .card:hover {
-            border-color: var(--card-border-focus);
-        }
-
         .header {
             text-align: center;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
         }
 
         .header h1 {
             font-size: 1.3rem;
             font-weight: 600;
-            letter-spacing: 0.5px;
             color: var(--text-primary);
             margin-bottom: 6px;
         }
@@ -149,7 +136,6 @@
         .header p {
             font-size: 0.8rem;
             color: var(--text-secondary);
-            font-weight: 400;
         }
 
         .badge {
@@ -162,7 +148,23 @@
             font-size: 0.72rem;
             font-weight: 500;
             margin-top: 8px;
-            letter-spacing: 0.3px;
+        }
+
+        .pos-indicator {
+            background: rgba(10, 16, 32, 0.9);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .pos-value {
+            font-weight: 700;
+            color: var(--success-color);
+            font-size: 1.1rem;
         }
 
         .form-group {
@@ -177,7 +179,6 @@
             color: var(--text-secondary);
         }
 
-        /* CONTENEDOR EN LÍNEA PARA [ - ] [ INPUT ] [ + ] */
         .input-inline-group {
             display: flex;
             align-items: center;
@@ -187,7 +188,7 @@
 
         .input-inline-group input[type="number"] {
             flex: 1;
-            min-width: 0; /* Evita que el input se desborde en pantallas muy angostas */
+            min-width: 0;
             padding: 12px 8px;
             background-color: var(--input-bg);
             border: 1px solid var(--card-border);
@@ -196,17 +197,6 @@
             font-size: 1.1rem;
             text-align: center;
             outline: none;
-            transition: all 0.25s ease;
-        }
-
-        .input-inline-group input[type="number"]:focus {
-            border-color: var(--accent-blue);
-            box-shadow: 0 0 0 3px var(--accent-glow);
-        }
-
-        .input-inline-group input[type=number]::-webkit-inner-spin-button, 
-        .input-inline-group input[type=number]::-webkit-outer-spin-button { 
-            opacity: 0.5;
         }
 
         .btn-step {
@@ -220,38 +210,51 @@
             font-weight: 600;
             cursor: pointer;
             box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
-            transition: all 0.2s ease;
             display: flex;
             justify-content: center;
             align-items: center;
             flex-shrink: 0;
-            touch-action: manipulation; /* Optimiza los toques en pantallas táctiles */
-        }
-
-        .btn-step:hover {
-            background-color: var(--accent-blue-hover);
-            box-shadow: 0 6px 20px rgba(2, 132, 199, 0.45);
-        }
-
-        .btn-step:active {
-            transform: scale(0.96);
-            box-shadow: 0 2px 8px rgba(2, 132, 199, 0.3);
+            touch-action: manipulation;
         }
 
         .btn-step:disabled {
-            background-color: #1e293b;
-            color: var(--text-muted);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            box-shadow: none;
+            background-color: rgba(14, 116, 144, 0.15);
+            color: rgba(56, 189, 248, 0.3);
+            border-color: rgba(56, 189, 248, 0.08);
             cursor: not-allowed;
-            transform: none;
         }
 
+        .btn-home {
+            width: 100%;
+            margin-top: 14px;
+            padding: 12px;
+            background-color: rgba(244, 63, 94, 0.15); /* Fondo rojo translúcido */
+            border: 1px solid var(--error-color);        /* Borde rojo (#f43f5e) */
+            border-radius: 8px;
+            color: #ffffff;                             /* Texto blanco */
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-home:hover {
+            background-color: var(--error-color);        /* Fondo rojo sólido al pasar el mouse */
+            border-color: var(--error-color);
+            box-shadow: 0 4px 14px rgba(244, 63, 94, 0.4);
+        }
+        
+        .btn-home:disabled, .btn-home:disabled:hover {
+            background-color: rgba(159, 18, 57, 0.12);
+            color: rgba(244, 63, 94, 0.35);
+            border-color: rgba(244, 63, 94, 0.12);
+            cursor: not-allowed;
+        }
+        
         .hint {
             font-size: 0.75rem;
             color: var(--text-muted);
             margin-top: 10px;
-            line-height: 1.4;
             text-align: center;
         }
 
@@ -267,8 +270,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.3s ease;
-            word-break: break-word;
         }
 
         .status-idle { color: var(--text-muted); }
@@ -286,11 +287,8 @@
             display: inline-block;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* --- FOOTER --- */
         .footer {
             background: rgba(10, 15, 29, 0.9);
             border-top: 1px solid var(--card-border);
@@ -300,52 +298,15 @@
             color: var(--text-muted);
         }
 
-        /* ============================================================================
-           AJUSTES RESPONSIVE (MEDIA QUERIES PARA CELULARES)
-           ============================================================================ */
         @media (max-width: 480px) {
-            .navbar {
-                padding: 0 12px;
-            }
-
-            .navbar-brand span {
-                font-size: 0.9rem;
-            }
-
-            .nav-tab-btn {
-                padding: 6px 10px;
-                font-size: 0.8rem;
-            }
-
-            .main-container {
-                padding: 16px 12px;
-                align-items: flex-start; /* Evita compresión vertical si aparece el teclado */
-            }
-
-            .card {
-                padding: 24px 16px;
-                border-radius: 14px;
-            }
-
-            .header h1 {
-                font-size: 1.2rem;
-            }
-
-            .btn-step {
-                width: 44px;
-                height: 44px;
-                font-size: 1.2rem;
-            }
-
-            .input-inline-group input[type="number"] {
-                font-size: 1rem;
-            }
+            .main-container { padding: 16px 12px; align-items: flex-start; }
+            .card { padding: 24px 16px; }
+            .btn-step { width: 44px; height: 44px; }
         }
     </style>
 </head>
 <body>
 
-<!-- NAVBAR -->
 <nav class="navbar">
     <div class="navbar-brand">
         <span>⚙ ESP32 Control</span>
@@ -360,10 +321,7 @@
     </ul>
 </nav>
 
-<!-- CONTENIDO PRINCIPAL -->
 <main class="main-container">
-
-    <!-- PESTAÑA: DEFORMACIÓN -->
     <section id="tab-deformacion" class="tab-content active">
         <div class="card">
             <div class="header">
@@ -372,16 +330,24 @@
                 <span class="badge">ESP32 Online</span>
             </div>
 
+            <div class="pos-indicator">
+                Posición absoluta: <span id="posDisplay" class="pos-value">...</span> pasos
+            </div>
+
             <div class="form-group">
                 <label for="stepsInput">Cantidad de pasos:</label>
                 <div class="input-inline-group">
                     <button id="btnCCW" class="btn-step" onclick="enviarPasos(-1)" title="Sentido Antihorario">−</button>
-                    <input type="number" id="stepsInput" value="20" min="1" step="1" placeholder="Ej: 200" autocomplete="off" onkeydown="return event.key !== 'e' && event.key !== '-' && event.key !== '+' && event.key !== '.'&& event.key !== ','">
+                    <input type="number" id="stepsInput" value="20" min="1" placeholder="Ej: 200" autocomplete="off" onkeydown="return event.key !== 'e' && event.key !== '-' && event.key !== '+' && event.key !== '.'&& event.key !== ','">
                     <button id="btnCW" class="btn-step" onclick="enviarPasos(1)" title="Sentido Horario">+</button>
                 </div>
                 <div class="hint">
                     <b>−</b> Sentido antihorario &nbsp;|&nbsp; <b>+</b> Sentido horario
                 </div>
+
+                <button id="btnHome" class="btn-home" onclick="volverACero()">
+                    Volver a la posición 0
+                </button>
             </div>
 
             <div id="statusBox" class="status-box status-idle">
@@ -390,7 +356,6 @@
         </div>
     </section>
 
-    <!-- PESTAÑA: AJUSTES -->
     <section id="tab-ajustes" class="tab-content">
         <div class="card">
             <div class="header">
@@ -402,34 +367,62 @@
             </p>
         </div>
     </section>
-
 </main>
 
-<!-- FOOTER -->
 <footer class="footer">
     <p>Sistema de Control ESP-IDF • DRV8825 Stepper Controller</p>
 </footer>
 
 <script>
     function switchTab(tabId, btnElement) {
-        document.querySelectorAll('.tab-content').forEach(tab => {
-            tab.classList.remove('active');
-        });
-
-        document.querySelectorAll('.nav-tab-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.nav-tab-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById('tab-' + tabId).classList.add('active');
         btnElement.classList.add('active');
     }
 
+    function actualizarEstado() {
+        fetch('/api/status')
+            .then(res => res.json())
+            .then(data => {
+                // Actualizar la posición absoluta en pantalla
+                if (data.position !== undefined) {
+                    document.getElementById('posDisplay').innerText = data.position;
+                }
+
+                const statusBox = document.getElementById('statusBox');
+
+                // Evaluar si la fuente conectada al GPIO 34 está encendida (true/false)
+                if (data.power === false) {
+                    bloquearBotones(true);
+                    statusBox.className = 'status-box status-error';
+                    statusBox.innerHTML = '✖ Debe encender el motor para iniciar.';
+                } else {
+                    // Si la fuente se enciende y los botones estaban bloqueados, habilitarlos
+                    if (document.getElementById('btnCW').disabled) {
+                        bloquearBotones(false);
+                        statusBox.className = 'status-box status-idle';
+                        statusBox.innerHTML = 'Esperando orden...';
+                    }
+                }
+            })
+            .catch(() => {
+                bloquearBotones(true);
+                const statusBox = document.getElementById('statusBox');
+                statusBox.className = 'status-box status-error';
+                statusBox.innerHTML = '✖ Sin conexión con la ESP32.';
+            });
+    }
+
+    function bloquearBotones(bloquear) {
+        document.getElementById('btnCCW').disabled = bloquear;
+        document.getElementById('btnCW').disabled = bloquear;
+        document.getElementById('btnHome').disabled = bloquear;
+    }
+
     function enviarPasos(direccion) {
         const input = document.getElementById('stepsInput');
-        const btnCCW = document.getElementById('btnCCW');
-        const btnCW = document.getElementById('btnCW');
         const statusBox = document.getElementById('statusBox');
-        
         const magnitud = Math.abs(parseInt(input.value));
 
         if (isNaN(magnitud) || magnitud === 0) {
@@ -439,37 +432,63 @@
         }
 
         const pasosFinales = magnitud * direccion;
-
-        btnCCW.disabled = true;
-        btnCW.disabled = true;
+        bloquearBotones(true);
         statusBox.className = 'status-box status-info';
         statusBox.innerHTML = '<span class="spinner"></span> <span>Enviando instrucción...</span>';
 
         fetch('/api/move', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: 'steps=' + pasosFinales
         })
-        .then(response => {
-            if (response.ok) {
-                statusBox.className = 'status-box status-success';
-                statusBox.innerHTML = '✔ Comando ejecutado correctamente.';
-            } else {
-                statusBox.className = 'status-box status-error';
-                statusBox.innerHTML = '✖ Error en la respuesta del servidor.';
+        .then(res => {
+            if (!res.ok) throw new Error('Error en la respuesta');
+            return res.json();
+        })
+        .then(data => {
+            statusBox.className = 'status-box status-success';
+            statusBox.innerHTML = '✔ Comando ejecutado correctamente.';
+            if (data.position !== undefined) {
+                document.getElementById('posDisplay').innerText = data.position;
             }
         })
-        .catch(err => {
+        .catch(() => {
+            // Si falla (por ejemplo, porque se apagó la fuente), forzamos actualización de estado
+            actualizarEstado();
+        })
+        .finally(() => {
+            // Volver a validar si la fuente sigue activa antes de desbloquear
+            actualizarEstado();
+        });
+    }
+
+    function volverACero() {
+        const statusBox = document.getElementById('statusBox');
+        bloquearBotones(true);
+        statusBox.className = 'status-box status-info';
+        statusBox.innerHTML = '<span class="spinner"></span> <span>Retornando a posición 0...</span>';
+
+        fetch('/api/home', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            statusBox.className = 'status-box status-success';
+            statusBox.innerHTML = '✔ Retorno a origen (0) completado.';
+            if (data.position !== undefined) {
+                document.getElementById('posDisplay').innerText = data.position;
+            }
+        })
+        .catch(() => {
             statusBox.className = 'status-box status-error';
             statusBox.innerHTML = '✖ Sin conexión con la ESP32.';
         })
-        .finally(() => {
-            btnCCW.disabled = false;
-            btnCW.disabled = false;
-        });
+        .finally(() => bloquearBotones(false));
     }
+
+    // Cargar la posición registrada al iniciar la aplicación web
+    window.addEventListener('DOMContentLoaded', () => {
+        actualizarEstado();
+        setInterval(actualizarEstado, 2000); // Actualizar cada 2 segundos
+    });
 </script>
 
 </body>
