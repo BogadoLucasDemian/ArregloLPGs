@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - Motor Paso a Paso</title>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0a0f1d 0%, #070a14 100%);
+            --card-bg: rgba(16, 24, 48, 0.75);
+            --card-border: rgba(56, 189, 248, 0.15);
+            --card-border-focus: rgba(56, 189, 248, 0.4);
+            
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            
+            --accent-blue: #0284c7;
+            --accent-blue-hover: #0369a1;
+            --accent-glow: rgba(56, 189, 248, 0.25);
+            
+            --input-bg: rgba(10, 16, 32, 0.8);
+            --status-bg: rgba(15, 23, 42, 0.6);
+            
+            --success-color: #38bdf8;
+            --error-color: #f43f5e;
+            --info-color: #38bdf8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background: var(--bg-gradient);
+            color: var(--text-primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6),
+                        0 0 30px rgba(2, 132, 199, 0.05);
+            padding: 36px 32px;
+            width: 100%;
+            max-width: 400px;
+            transition: border-color 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: var(--card-border-focus);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .header h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .header p {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.72rem;
+            font-weight: 500;
+            margin-top: 8px;
+            letter-spacing: 0.3px;
+        }
+
+        .form-group {
+            margin-bottom: 22px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 12px 16px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.25s ease;
+        }
+
+        input[type="number"]:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        /* Ocultar flechas numéricas nativas en algunos navegadores */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            opacity: 0.5;
+        }
+
+        .hint {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+            line-height: 1.4;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 13px;
+            background-color: var(--accent-blue);
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-submit:hover {
+            background-color: var(--accent-blue-hover);
+            box-shadow: 0 6px 20px rgba(2, 132, 199, 0.45);
+            transform: translateY(-1px);
+        }
+
+        .btn-submit:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 8px rgba(2, 132, 199, 0.3);
+        }
+
+        .btn-submit:disabled {
+            background-color: #1e293b;
+            color: var(--text-muted);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-box {
+            margin-top: 20px;
+            padding: 12px;
+            background: var(--status-bg);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            font-size: 0.82rem;
+            text-align: center;
+            min-height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .status-idle { color: var(--text-muted); }
+        .status-success { color: var(--success-color); border-color: rgba(56, 189, 248, 0.2); }
+        .status-error { color: var(--error-color); border-color: rgba(244, 63, 94, 0.2); }
+        .status-info { color: var(--info-color); }
+
+        /* Loader giratorio suave */
+        .spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="header">
+        <h1>Control de Movimiento</h1>
+        <p>Driver DRV8825 • Motor Paso a Paso</p>
+        <span class="badge">ESP32 Online</span>
+    </div>
+
+    <div class="form-group">
+        <label for="stepsInput">Paso objetivo (Pasos):</label>
+        <div class="input-wrapper">
+            <input type="number" id="stepsInput" value="20" placeholder="Ej: 200 o -200" autocomplete="off">
+        </div>
+        <div class="hint">
+            • <b>Positivo (+):</b> Giro en sentido Horario.<br>
+            • <b>Negativo (-):</b> Giro en sentido Antihorario.
+        </div>
+    </div>
+
+    <button id="btnMove" class="btn-submit" onclick="enviarPasos()">
+        <span>Ejecutar Movimiento</span>
+    </button>
+
+    <div id="statusBox" class="status-box status-idle">
+        Esperando orden...
+    </div>
+</div>
+
+<script>
+    function enviarPasos() {
+        const input = document.getElementById('stepsInput');
+        const btn = document.getElementById('btnMove');
+        const statusBox = document.getElementById('statusBox');
+        const pasos = parseInt(input.value);
+
+        if (isNaN(pasos) || pasos === 0) {
+            statusBox.className = 'status-box status-error';
+            statusBox.innerHTML = 'Ingresa un valor numérico distinto de cero.';
+            return;
+        }
+
+        // Estado: Cargando / Enviando
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> <span>Procesando...</span>';
+        statusBox.className = 'status-box status-info';
+        statusBox.innerHTML = 'Enviando pulso de control a la ESP32...';
+
+        fetch('/api/move', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'steps=' + pasos
+        })
+        .then(response => {
+            if (response.ok) {
+                statusBox.className = 'status-box status-success';
+                statusBox.innerHTML = '✔ Comando ejecutado correctamente.';
+            } else {
+                statusBox.className = 'status-box status-error';
+                statusBox.innerHTML = '✖ Error en la respuesta del servidor.';
+            }
+        })
+        .catch(err => {
+            statusBox.className = 'status-box status-error';
+            statusBox.innerHTML = '✖ Sin conexión con la ESP32.';
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<span>Ejecutar Movimiento</span>';
+        });
+    }
+</script>
+
+</body>
+</html>
