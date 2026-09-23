@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Control - Motor Paso a Paso</title>
+    <title>Panel de Control - ESP32</title>
     <style>
         :root {
             --bg-gradient: linear-gradient(135deg, #0a0f1d 0%, #070a14 100%);
@@ -39,12 +39,84 @@
             background: var(--bg-gradient);
             color: var(--text-primary);
             display: flex;
-            justify-content: center;
-            align-items: center;
+            flex-direction: column;
             min-height: 100vh;
-            padding: 20px;
         }
 
+        /* --- NAVBAR --- */
+        .navbar {
+            background: rgba(10, 15, 29, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--card-border);
+            padding: 0 16px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .navbar-brand {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 6px;
+            list-style: none;
+        }
+
+        .nav-tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .nav-tab-btn:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-tab-btn.active {
+            color: var(--success-color);
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+
+        /* --- CONTENIDO PRINCIPAL --- */
+        .main-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px 16px;
+        }
+
+        .tab-content {
+            display: none;
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* --- TARJETA Y FORMULARIO --- */
         .card {
             background: var(--card-bg);
             backdrop-filter: blur(12px);
@@ -53,9 +125,7 @@
             border-radius: 16px;
             box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6),
                         0 0 30px rgba(2, 132, 199, 0.05);
-            padding: 36px 32px;
-            width: 100%;
-            max-width: 400px;
+            padding: 28px 20px;
             transition: border-color 0.3s ease;
         }
 
@@ -65,11 +135,11 @@
 
         .header {
             text-align: center;
-            margin-bottom: 28px;
+            margin-bottom: 24px;
         }
 
         .header h1 {
-            font-size: 1.4rem;
+            font-size: 1.3rem;
             font-weight: 600;
             letter-spacing: 0.5px;
             color: var(--text-primary);
@@ -77,7 +147,7 @@
         }
 
         .header p {
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             color: var(--text-secondary);
             font-weight: 400;
         }
@@ -96,7 +166,7 @@
         }
 
         .form-group {
-            margin-bottom: 22px;
+            margin-bottom: 20px;
         }
 
         label {
@@ -107,73 +177,68 @@
             color: var(--text-secondary);
         }
 
-        .input-wrapper {
-            position: relative;
+        /* CONTENEDOR EN LÍNEA PARA [ - ] [ INPUT ] [ + ] */
+        .input-inline-group {
             display: flex;
             align-items: center;
+            gap: 8px;
+            width: 100%;
         }
 
-        input[type="number"] {
-            width: 100%;
-            padding: 12px 16px;
+        .input-inline-group input[type="number"] {
+            flex: 1;
+            min-width: 0; /* Evita que el input se desborde en pantallas muy angostas */
+            padding: 12px 8px;
             background-color: var(--input-bg);
             border: 1px solid var(--card-border);
             border-radius: 8px;
             color: var(--text-primary);
-            font-size: 1rem;
+            font-size: 1.1rem;
+            text-align: center;
             outline: none;
             transition: all 0.25s ease;
         }
 
-        input[type="number"]:focus {
+        .input-inline-group input[type="number"]:focus {
             border-color: var(--accent-blue);
             box-shadow: 0 0 0 3px var(--accent-glow);
         }
 
-        /* Ocultar flechas numéricas nativas en algunos navegadores */
-        input[type=number]::-webkit-inner-spin-button, 
-        input[type=number]::-webkit-outer-spin-button { 
+        .input-inline-group input[type=number]::-webkit-inner-spin-button, 
+        .input-inline-group input[type=number]::-webkit-outer-spin-button { 
             opacity: 0.5;
         }
 
-        .hint {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 8px;
-            line-height: 1.4;
-        }
-
-        .btn-submit {
-            width: 100%;
-            padding: 13px;
+        .btn-step {
+            width: 48px;
+            height: 48px;
             background-color: var(--accent-blue);
             color: #ffffff;
             border: none;
             border-radius: 8px;
-            font-size: 0.95rem;
+            font-size: 1.4rem;
             font-weight: 600;
-            letter-spacing: 0.3px;
             cursor: pointer;
             box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
             transition: all 0.2s ease;
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 8px;
+            flex-shrink: 0;
+            touch-action: manipulation; /* Optimiza los toques en pantallas táctiles */
         }
 
-        .btn-submit:hover {
+        .btn-step:hover {
             background-color: var(--accent-blue-hover);
             box-shadow: 0 6px 20px rgba(2, 132, 199, 0.45);
-            transform: translateY(-1px);
         }
 
-        .btn-submit:active {
-            transform: translateY(1px);
+        .btn-step:active {
+            transform: scale(0.96);
             box-shadow: 0 2px 8px rgba(2, 132, 199, 0.3);
         }
 
-        .btn-submit:disabled {
+        .btn-step:disabled {
             background-color: #1e293b;
             color: var(--text-muted);
             border: 1px solid rgba(255, 255, 255, 0.05);
@@ -182,19 +247,28 @@
             transform: none;
         }
 
+        .hint {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 10px;
+            line-height: 1.4;
+            text-align: center;
+        }
+
         .status-box {
             margin-top: 20px;
             padding: 12px;
             background: var(--status-bg);
             border-radius: 8px;
             border: 1px solid rgba(255, 255, 255, 0.03);
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             text-align: center;
             min-height: 42px;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.3s ease;
+            word-break: break-word;
         }
 
         .status-idle { color: var(--text-muted); }
@@ -202,7 +276,6 @@
         .status-error { color: var(--error-color); border-color: rgba(244, 63, 94, 0.2); }
         .status-info { color: var(--info-color); }
 
-        /* Loader giratorio suave */
         .spinner {
             width: 14px;
             height: 14px;
@@ -216,62 +289,168 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* --- FOOTER --- */
+        .footer {
+            background: rgba(10, 15, 29, 0.9);
+            border-top: 1px solid var(--card-border);
+            padding: 14px 16px;
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* ============================================================================
+           AJUSTES RESPONSIVE (MEDIA QUERIES PARA CELULARES)
+           ============================================================================ */
+        @media (max-width: 480px) {
+            .navbar {
+                padding: 0 12px;
+            }
+
+            .navbar-brand span {
+                font-size: 0.9rem;
+            }
+
+            .nav-tab-btn {
+                padding: 6px 10px;
+                font-size: 0.8rem;
+            }
+
+            .main-container {
+                padding: 16px 12px;
+                align-items: flex-start; /* Evita compresión vertical si aparece el teclado */
+            }
+
+            .card {
+                padding: 24px 16px;
+                border-radius: 14px;
+            }
+
+            .header h1 {
+                font-size: 1.2rem;
+            }
+
+            .btn-step {
+                width: 44px;
+                height: 44px;
+                font-size: 1.2rem;
+            }
+
+            .input-inline-group input[type="number"] {
+                font-size: 1rem;
+            }
+        }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <div class="header">
-        <h1>Control de Movimiento</h1>
-        <p>Driver DRV8825 • Motor Paso a Paso</p>
-        <span class="badge">ESP32 Online</span>
+<!-- NAVBAR -->
+<nav class="navbar">
+    <div class="navbar-brand">
+        <span>⚙ ESP32 Control</span>
     </div>
+    <ul class="nav-tabs">
+        <li>
+            <button class="nav-tab-btn active" onclick="switchTab('deformacion', this)">Deformación</button>
+        </li>
+        <li>
+            <button class="nav-tab-btn" onclick="switchTab('ajustes', this)">Ajustes</button>
+        </li>
+    </ul>
+</nav>
 
-    <div class="form-group">
-        <label for="stepsInput">Paso objetivo (Pasos):</label>
-        <div class="input-wrapper">
-            <input type="number" id="stepsInput" value="20" placeholder="Ej: 200 o -200" autocomplete="off">
+<!-- CONTENIDO PRINCIPAL -->
+<main class="main-container">
+
+    <!-- PESTAÑA: DEFORMACIÓN -->
+    <section id="tab-deformacion" class="tab-content active">
+        <div class="card">
+            <div class="header">
+                <h1>Control de Deformación</h1>
+                <p>Driver DRV8825 • Motor Paso a Paso</p>
+                <span class="badge">ESP32 Online</span>
+            </div>
+
+            <div class="form-group">
+                <label for="stepsInput">Cantidad de pasos:</label>
+                <div class="input-inline-group">
+                    <button id="btnCCW" class="btn-step" onclick="enviarPasos(-1)" title="Sentido Antihorario">−</button>
+                    <input type="number" id="stepsInput" value="20" min="1" step="1" placeholder="Ej: 200" autocomplete="off" onkeydown="return event.key !== 'e' && event.key !== '-' && event.key !== '+' && event.key !== '.'&& event.key !== ','">
+                    <button id="btnCW" class="btn-step" onclick="enviarPasos(1)" title="Sentido Horario">+</button>
+                </div>
+                <div class="hint">
+                    <b>−</b> Sentido antihorario &nbsp;|&nbsp; <b>+</b> Sentido horario
+                </div>
+            </div>
+
+            <div id="statusBox" class="status-box status-idle">
+                Esperando orden...
+            </div>
         </div>
-        <div class="hint">
-            • <b>Positivo (+):</b> Giro en sentido Horario.<br>
-            • <b>Negativo (-):</b> Giro en sentido Antihorario.
+    </section>
+
+    <!-- PESTAÑA: AJUSTES -->
+    <section id="tab-ajustes" class="tab-content">
+        <div class="card">
+            <div class="header">
+                <h1>Configuración</h1>
+                <p>Parámetros generales del sistema</p>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); text-align: center;">
+                Pestaña lista para agregar parámetros de velocidad, aceleración o calibración.
+            </p>
         </div>
-    </div>
+    </section>
 
-    <button id="btnMove" class="btn-submit" onclick="enviarPasos()">
-        <span>Ejecutar Movimiento</span>
-    </button>
+</main>
 
-    <div id="statusBox" class="status-box status-idle">
-        Esperando orden...
-    </div>
-</div>
+<!-- FOOTER -->
+<footer class="footer">
+    <p>Sistema de Control ESP-IDF • DRV8825 Stepper Controller</p>
+</footer>
 
 <script>
-    function enviarPasos() {
-        const input = document.getElementById('stepsInput');
-        const btn = document.getElementById('btnMove');
-        const statusBox = document.getElementById('statusBox');
-        const pasos = parseInt(input.value);
+    function switchTab(tabId, btnElement) {
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
 
-        if (isNaN(pasos) || pasos === 0) {
+        document.querySelectorAll('.nav-tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        document.getElementById('tab-' + tabId).classList.add('active');
+        btnElement.classList.add('active');
+    }
+
+    function enviarPasos(direccion) {
+        const input = document.getElementById('stepsInput');
+        const btnCCW = document.getElementById('btnCCW');
+        const btnCW = document.getElementById('btnCW');
+        const statusBox = document.getElementById('statusBox');
+        
+        const magnitud = Math.abs(parseInt(input.value));
+
+        if (isNaN(magnitud) || magnitud === 0) {
             statusBox.className = 'status-box status-error';
-            statusBox.innerHTML = 'Ingresa un valor numérico distinto de cero.';
+            statusBox.innerHTML = 'Ingresa una cantidad de pasos válida.';
             return;
         }
 
-        // Estado: Cargando / Enviando
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span> <span>Procesando...</span>';
+        const pasosFinales = magnitud * direccion;
+
+        btnCCW.disabled = true;
+        btnCW.disabled = true;
         statusBox.className = 'status-box status-info';
-        statusBox.innerHTML = 'Enviando pulso de control a la ESP32...';
+        statusBox.innerHTML = '<span class="spinner"></span> <span>Enviando instrucción...</span>';
 
         fetch('/api/move', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: 'steps=' + pasos
+            body: 'steps=' + pasosFinales
         })
         .then(response => {
             if (response.ok) {
@@ -287,8 +466,8 @@
             statusBox.innerHTML = '✖ Sin conexión con la ESP32.';
         })
         .finally(() => {
-            btn.disabled = false;
-            btn.innerHTML = '<span>Ejecutar Movimiento</span>';
+            btnCCW.disabled = false;
+            btnCW.disabled = false;
         });
     }
 </script>
