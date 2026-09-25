@@ -19,6 +19,7 @@
 #define PIN_STEP        GPIO_NUM_18   // Pin conectado a STEP en el DRV8825
 #define PIN_DIR         GPIO_NUM_19   // Pin conectado a DIR en el DRV8825
 #define PIN_SENSE_POWER GPIO_NUM_34   // Pin de lectura del divisor resistivo (Censa 12V/24V)
+#define PIN_PELTIER GPIO_NUM_17 // Pin de control de la Peltier vía NPN + TIP127
 
 // Retardo entre pulsos en microsegundos (determina la velocidad de giro)
 #define RETARDO_PULSO_US 1000  
@@ -38,6 +39,7 @@ static QueueHandle_t motor_queue = NULL;
 // Posición absoluta acumulada del motor (en pasos)
 static int32_t posicion_actual = 0;
 
+static bool peltier_estado = false;
 // ============================================================================
 // 3. FUNCIONES AUXILIARES DE NVS Y CONTROL DEL MOTOR
 // ============================================================================
@@ -189,9 +191,10 @@ esp_err_t get_root_handler(httpd_req_t *req) {
  * @brief HTTP GET /api/status : Devuelve la posición actual y el estado de la fuente
  */
 esp_err_t get_status_handler(httpd_req_t *req) {
-    char resp[96];
+    char resp[128];
     bool pwr = fuente_alimentacion_activa();
-    snprintf(resp, sizeof(resp), "{\"position\":%ld,\"power\":%s}", (long)posicion_actual, pwr ? "true" : "false");
+    snprintf(resp, sizeof(resp), "{\"position\":%ld,\"power\":%s,\"peltier\":%s}", 
+             (long)posicion_actual, pwr ? "true" : "false", peltier_estado ? "true" : "false");
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, resp);
     return ESP_OK;
@@ -278,6 +281,26 @@ esp_err_t post_set_zero_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
+esp_err_t post_peltier_handler(httpd_req_t *req) {
+    char buf[32];
+    int ret = httpd_req_recv(req, buf, req->content_len);
+    if (ret > 0) {
+        buf[ret] = '\0';
+        int state = 0;
+        if (sscanf(buf, "state=%d", &state) == 1) {
+            peltier_estado = (state == 1);
+            gpio_set_level(PIN_PELTIER, peltier_estado ? 1 : 0);
+            ESP_LOGI(TAG, "GPIO 17 (Peltier) cambiado a: %d", peltier_estado ? 1 : 0);
+
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_sendstr(req, "{\"status\":\"OK\"}");
+            return ESP_OK;
+        }
+    }
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Parámetro inválido");
+    return ESP_FAIL;
+}
+
 /**
  * @brief Registra los endpoints HTTP en el servidor web de ESP-IDF
  */
@@ -300,6 +323,9 @@ void iniciar_servidor_web(void) {
 
         httpd_uri_t set_zero_uri = { .uri = "/api/set_zero", .method = HTTP_POST, .handler = post_set_zero_handler };
         httpd_register_uri_handler(server, &set_zero_uri);
+        
+        httpd_uri_t peltier_uri = { .uri = "/api/peltier", .method = HTTP_POST, .handler = post_peltier_handler };
+        httpd_register_uri_handler(server, &peltier_uri);
         
         ESP_LOGI(TAG, "Servidor HTTP iniciado en http://192.168.4.1");
     }
@@ -361,6 +387,11 @@ void app_main(void) {
     // Configurar GPIO 34 como entrada de lectura digital (solamente entrada, sin pull-up/down interno)
     gpio_reset_pin(PIN_SENSE_POWER);
     gpio_set_direction(PIN_SENSE_POWER, GPIO_MODE_INPUT);
+
+    // Configurar GPIO 17 como salida para controlar la Peltier
+    gpio_reset_pin(PIN_PELTIER);
+    gpio_set_direction(PIN_PELTIER, GPIO_MODE_OUTPUT);
+    gpio_set_level(PIN_PELTIER, 0); // Iniciar apagado a 0V
 
     // 4. Crear cola de comunicación y lanzar la tarea en el Core 1
     motor_queue = xQueueCreate(10, sizeof(int));

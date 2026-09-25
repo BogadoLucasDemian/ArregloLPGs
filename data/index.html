@@ -298,6 +298,63 @@
             color: var(--text-muted);
         }
 
+        /* Estilos específicos para la pestaña Temperatura / Switch ON-OFF */
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(10, 16, 32, 0.8);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 10px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 52px;
+            height: 28px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #1e293b;
+            transition: .3s;
+            border-radius: 28px;
+            border: 1px solid var(--card-border);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: var(--text-secondary);
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent-blue);
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(24px);
+            background-color: #ffffff;
+        }
+
         @media (max-width: 480px) {
             .main-container { padding: 16px 12px; align-items: flex-start; }
             .card { padding: 24px 16px; }
@@ -316,7 +373,7 @@
             <button class="nav-tab-btn active" onclick="switchTab('deformacion', this)">Deformación</button>
         </li>
         <li>
-            <button class="nav-tab-btn" onclick="switchTab('ajustes', this)">Ajustes</button>
+            <button class="nav-tab-btn" onclick="switchTab('temperatura', this)">Temperatura</button>
         </li>
     </ul>
 </nav>
@@ -356,15 +413,27 @@
         </div>
     </section>
 
-    <section id="tab-ajustes" class="tab-content">
+    <section id="tab-temperatura" class="tab-content">
         <div class="card">
             <div class="header">
-                <h1>Configuración</h1>
-                <p>Parámetros generales del sistema</p>
+                <h1>Control de Temperatura</h1>
+                <p>Celda Peltier TEC1-12705 • GPIO 17</p>
             </div>
-            <p style="font-size: 0.85rem; color: var(--text-secondary); text-align: center;">
-                Pestaña lista para agregar parámetros de velocidad, aceleración o calibración.
-            </p>
+            
+            <div class="control-row">
+                <div>
+                    <span style="display: block; font-size: 0.9rem; font-weight: 600; color: var(--text-primary);">Celda Peltier</span>
+                    <span id="peltierStateText" style="font-size: 0.75rem; color: var(--text-muted);">Estado: APAGADO (0V)</span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="peltierSwitch" onchange="togglePeltier(this.checked)">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div id="peltierStatusBox" class="status-box status-idle">
+                Estado listo.
+            </div>
         </div>
     </section>
 </main>
@@ -388,6 +457,13 @@
                 // Actualizar la posición absoluta en pantalla
                 if (data.position !== undefined) {
                     document.getElementById('posDisplay').innerText = data.position;
+                }
+                
+                if (data.peltier !== undefined) {
+                    const switchElem = document.getElementById('peltierSwitch');
+                    const textElem = document.getElementById('peltierStateText');
+                    switchElem.checked = data.peltier;
+                    textElem.innerText = data.peltier ? 'Estado: ENCENDIDO (3.3V)' : 'Estado: APAGADO (0V)';
                 }
 
                 const statusBox = document.getElementById('statusBox');
@@ -484,6 +560,35 @@
         .finally(() => bloquearBotones(false));
     }
 
+    // Función agregada para enviar el cambio de estado a la ESP32
+    function togglePeltier(estado) {
+        const statusBox = document.getElementById('peltierStatusBox');
+        const textElem = document.getElementById('peltierStateText');
+        
+        statusBox.className = 'status-box status-info';
+        statusBox.innerHTML = '<span class="spinner"></span> <span>Actualizando GPIO 17...</span>';
+
+        fetch('/api/peltier', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'state=' + (estado ? '1' : '0')
+        })
+        .then(res => {
+            if (!res.ok) throw new Error('Error en servidor');
+            return res.json();
+        })
+        .then(data => {
+            statusBox.className = 'status-box status-success';
+            statusBox.innerHTML = estado ? '✔ Celda Peltier activada (3.3V).' : '✔ Celda Peltier desactivada (0V).';
+            textElem.innerText = estado ? 'Estado: ENCENDIDO (3.3V)' : 'Estado: APAGADO (0V)';
+        })
+        .catch(() => {
+            statusBox.className = 'status-box status-error';
+            statusBox.innerHTML = '✖ Error al conmutar el GPIO 17.';
+            document.getElementById('peltierSwitch').checked = !estado;
+        });
+    }
+    
     // Cargar la posición registrada al iniciar la aplicación web
     window.addEventListener('DOMContentLoaded', () => {
         actualizarEstado();
