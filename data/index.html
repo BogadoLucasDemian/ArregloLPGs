@@ -417,18 +417,22 @@
         <div class="card">
             <div class="header">
                 <h1>Control de Temperatura</h1>
-                <p>Celda Peltier TEC1-12705 • GPIO 17</p>
+                <p>Celda Peltier TEC1-12705 • PWM GPIO 17</p>
             </div>
             
-            <div class="control-row">
-                <div>
-                    <span style="display: block; font-size: 0.9rem; font-weight: 600; color: var(--text-primary);">Celda Peltier</span>
-                    <span id="peltierStateText" style="font-size: 0.75rem; color: var(--text-muted);">Estado: APAGADO (0V)</span>
+            <div class="form-group" style="margin-top: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label for="peltierRange" style="margin: 0;">Ciclo de trabajo (Duty):</label>
+                    <span id="peltierDutyVal" style="font-weight: 700; color: var(--success-color); font-size: 1.1rem;">0%</span>
                 </div>
-                <label class="switch">
-                    <input type="checkbox" id="peltierSwitch" onchange="togglePeltier(this.checked)">
-                    <span class="slider"></span>
-                </label>
+                
+                <input type="range" id="peltierRange" min="0" max="100" value="0" style="width: 100%; accent-color: var(--accent-blue); cursor: pointer;" oninput="document.getElementById('peltierDutyVal').innerText = this.value + '%'" onchange="enviarDutyPeltier(this.value)">
+                
+                <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">
+                    <span>0% (OFF)</span>
+                    <span>50%</span>
+                    <span>100% (MAX)</span>
+                </div>
             </div>
 
             <div id="peltierStatusBox" class="status-box status-idle">
@@ -459,11 +463,12 @@
                     document.getElementById('posDisplay').innerText = data.position;
                 }
                 
-                if (data.peltier !== undefined) {
-                    const switchElem = document.getElementById('peltierSwitch');
-                    const textElem = document.getElementById('peltierStateText');
-                    switchElem.checked = data.peltier;
-                    textElem.innerText = data.peltier ? 'Estado: ENCENDIDO (3.3V)' : 'Estado: APAGADO (0V)';
+                if (data.peltier_duty !== undefined) {
+                    // Evita mover el slider mientras el usuario lo está arrastrando
+                    if (document.activeElement !== document.getElementById('peltierRange')) {
+                        document.getElementById('peltierRange').value = data.peltier_duty;
+                        document.getElementById('peltierDutyVal').innerText = data.peltier_duty + '%';
+                    }
                 }
 
                 const statusBox = document.getElementById('statusBox');
@@ -561,17 +566,16 @@
     }
 
     // Función agregada para enviar el cambio de estado a la ESP32
-    function togglePeltier(estado) {
+    function enviarDutyPeltier(valorDuty) {
         const statusBox = document.getElementById('peltierStatusBox');
-        const textElem = document.getElementById('peltierStateText');
         
         statusBox.className = 'status-box status-info';
-        statusBox.innerHTML = '<span class="spinner"></span> <span>Actualizando GPIO 17...</span>';
+        statusBox.innerHTML = '<span class="spinner"></span> <span>Ajustando PWM a ' + valorDuty + '%...</span>';
 
         fetch('/api/peltier', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'state=' + (estado ? '1' : '0')
+            body: 'duty=' + valorDuty
         })
         .then(res => {
             if (!res.ok) throw new Error('Error en servidor');
@@ -579,13 +583,11 @@
         })
         .then(data => {
             statusBox.className = 'status-box status-success';
-            statusBox.innerHTML = estado ? '✔ Celda Peltier activada (3.3V).' : '✔ Celda Peltier desactivada (0V).';
-            textElem.innerText = estado ? 'Estado: ENCENDIDO (3.3V)' : 'Estado: APAGADO (0V)';
+            statusBox.innerHTML = '✔ Potencia ajustada al ' + valorDuty + '%.';
         })
         .catch(() => {
             statusBox.className = 'status-box status-error';
-            statusBox.innerHTML = '✖ Error al conmutar el GPIO 17.';
-            document.getElementById('peltierSwitch').checked = !estado;
+            statusBox.innerHTML = '✖ Error al actualizar el PWM.';
         });
     }
     

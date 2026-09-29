@@ -12,6 +12,7 @@
 #include "nvs.h"
 #include "esp_spiffs.h"
 #include "esp_http_server.h"
+#include "driver/ledc.h"
 
 // ============================================================================
 // 1. DEFINICIÓN DE PINES Y PARÁMETROS DEL HARDWARE
@@ -39,7 +40,7 @@ static QueueHandle_t motor_queue = NULL;
 // Posición absoluta acumulada del motor (en pasos)
 static int32_t posicion_actual = 0;
 
-static bool peltier_estado = false;
+static uint8_t peltier_duty_actual = 0;
 // ============================================================================
 // 3. FUNCIONES AUXILIARES DE NVS Y CONTROL DEL MOTOR
 // ============================================================================
@@ -193,8 +194,8 @@ esp_err_t get_root_handler(httpd_req_t *req) {
 esp_err_t get_status_handler(httpd_req_t *req) {
     char resp[128];
     bool pwr = fuente_alimentacion_activa();
-    snprintf(resp, sizeof(resp), "{\"position\":%ld,\"power\":%s,\"peltier\":%s}", 
-             (long)posicion_actual, pwr ? "true" : "false", peltier_estado ? "true" : "false");
+    snprintf(resp, sizeof(resp), "{\"position\":%ld,\"power\":%s,\"peltier_duty\":%d}", 
+             (long)posicion_actual, pwr ? "true" : "false", peltier_duty_actual);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, resp);
     return ESP_OK;
@@ -281,16 +282,55 @@ esp_err_t post_set_zero_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
+/**
+ * @brief Configura el periférico LEDC (PWM) en el GPIO 17
+ */
+void init_peltier_pwm(void) {
+    ledc_timer_config_t ledc_timer = {
+        .speed_mode       = LEDC_LOW_SPEED_MODE,
+        .timer_num        = LEDC_TIMER_0,
+        .duty_resolution  = LEDC_TIMER_8_BIT, // Resolución de 0 a 255
+        .freq_hz          = 20,               // 20 Hz (evita estrés térmico)
+        .clk_cfg          = LEDC_AUTO_CLK
+    };
+    ledc_timer_config(&ledc_timer);
+
+    ledc_channel_config_t ledc_channel = {
+        .speed_mode     = LEDC_LOW_SPEED_MODE,
+        .channel        = LEDC_CHANNEL_0,
+        .timer_sel      = LEDC_TIMER_0,
+        .intr_type      = LEDC_INTR_DISABLE,
+        .gpio_num       = PIN_PELTIER,        // GPIO 17
+        .duty           = 0,                  // Inicia apagado (0%)
+        .hpoint         = 0
+    };
+    ledc_channel_config(&ledc_channel);
+}
+
+/**
+ * @brief Mapea un porcentaje (0-100%) al duty de 8 bits (0-255)
+ */
+void set_peltier_duty_percentage(uint8_t porcentaje) {
+    if (porcentaje > 100) porcentaje = 100;
+    uint32_t duty = (255 * porcentaje) / 100;
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+}
+
 esp_err_t post_peltier_handler(httpd_req_t *req) {
     char buf[32];
     int ret = httpd_req_recv(req, buf, req->content_len);
     if (ret > 0) {
         buf[ret] = '\0';
-        int state = 0;
-        if (sscanf(buf, "state=%d", &state) == 1) {
-            peltier_estado = (state == 1);
-            gpio_set_level(PIN_PELTIER, peltier_estado ? 1 : 0);
-            ESP_LOGI(TAG, "GPIO 17 (Peltier) cambiado a: %d", peltier_estado ? 1 : 0);
+        int duty = 0;
+        if (sscanf(buf, "duty=%d", &duty) == 1) {
+            if (duty < 0) duty = 0;
+            if (duty > 100) duty = 100;
+
+            peltier_duty_actual = (uint8_t)duty;
+            set_peltier_duty_percentage(peltier_duty_actual);
+            
+            ESP_LOGI(TAG, "PWM Peltier (GPIO 17) ajustado a: %d%%", peltier_duty_actual);
 
             httpd_resp_set_type(req, "application/json");
             httpd_resp_sendstr(req, "{\"status\":\"OK\"}");
@@ -389,9 +429,7 @@ void app_main(void) {
     gpio_set_direction(PIN_SENSE_POWER, GPIO_MODE_INPUT);
 
     // Configurar GPIO 17 como salida para controlar la Peltier
-    gpio_reset_pin(PIN_PELTIER);
-    gpio_set_direction(PIN_PELTIER, GPIO_MODE_OUTPUT);
-    gpio_set_level(PIN_PELTIER, 0); // Iniciar apagado a 0V
+    init_peltier_pwm();
 
     // 4. Crear cola de comunicación y lanzar la tarea en el Core 1
     motor_queue = xQueueCreate(10, sizeof(int));
