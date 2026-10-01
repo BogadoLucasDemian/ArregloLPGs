@@ -419,6 +419,10 @@
                 <h1>Control de Temperatura</h1>
                 <p>Celda Peltier TEC1-12705 • PWM GPIO 17</p>
             </div>
+
+            <div class="pos-indicator" style="margin-top: 10px;">
+                Temperatura Sensor: <span id="tempDisplay" class="pos-value">--.-</span> °C
+            </div>
             
             <div class="form-group" style="margin-top: 15px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -469,6 +473,11 @@
                         document.getElementById('peltierRange').value = data.peltier_duty;
                         document.getElementById('peltierDutyVal').innerText = data.peltier_duty + '%';
                     }
+                }
+
+                // Actualizar valor de temperatura si está presente en el JSON
+                if (data.temp !== undefined) {
+                    document.getElementById('tempDisplay').innerText = data.temp.toFixed(1);
                 }
 
                 const statusBox = document.getElementById('statusBox');

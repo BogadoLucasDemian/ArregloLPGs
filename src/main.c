@@ -13,6 +13,9 @@
 #include "esp_spiffs.h"
 #include "esp_http_server.h"
 #include "driver/ledc.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 
 // ============================================================================
 // 1. DEFINICIÓN DE PINES Y PARÁMETROS DEL HARDWARE
@@ -21,7 +24,10 @@
 #define PIN_DIR         GPIO_NUM_19   // Pin conectado a DIR en el DRV8825
 #define PIN_SENSE_POWER GPIO_NUM_34   // Pin de lectura del divisor resistivo (Censa 12V/24V)
 #define PIN_PELTIER GPIO_NUM_17 // Pin de control de la Peltier vía NPN + TIP127
-
+#define ADC_UNIT        ADC_UNIT_1
+#define ADC_LM35_CHANNEL     ADC_CHANNEL_4      // GPIO32
+#define ADC_ATTEN       ADC_ATTEN_DB_6    // Rango aprox. 0 - 1.75 V
+#define ADC_BITWIDTH    ADC_BITWIDTH_12
 // Retardo entre pulsos en microsegundos (determina la velocidad de giro)
 #define RETARDO_PULSO_US 1000  
 
@@ -34,6 +40,8 @@
 
 static const char *TAG = "MOTOR_CONTROL";
 
+static float temperatura_actual = 0.0f;
+
 // Cola de tareas para independizar el servidor HTTP de la generación de pulsos
 static QueueHandle_t motor_queue = NULL;
 
@@ -41,6 +49,9 @@ static QueueHandle_t motor_queue = NULL;
 static int32_t posicion_actual = 0;
 
 static uint8_t peltier_duty_actual = 0;
+
+static adc_oneshot_unit_handle_t adc_handle = NULL;
+static adc_cali_handle_t cali_handle = NULL;
 // ============================================================================
 // 3. FUNCIONES AUXILIARES DE NVS Y CONTROL DEL MOTOR
 // ============================================================================
@@ -188,14 +199,84 @@ esp_err_t get_root_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
+// VIEJO
+/**
+ * @brief Inicializa el canal ADC1 para el LM35 y carga el esquema de calibración Line Fitting
+ */
+void init_adc_lm35(void) {
+    // 1. Inicialización de la unidad ADC1
+    adc_oneshot_unit_init_cfg_t init_config1 = {
+        .unit_id = ADC_UNIT_1,
+        .ulp_mode = ADC_ULP_MODE_DISABLE,
+    };
+    adc_oneshot_new_unit(&init_config1, &adc_handle);
+
+    // 2. Configuración del canal con atenuación DB_6 (rango 0V a ~2.2V)
+    adc_oneshot_chan_cfg_t config = {
+        .bitwidth = ADC_BITWIDTH, 
+        .atten = ADC_ATTEN_DB_6,          // Rango seguro para cubrir temperaturas altas
+    };
+    adc_oneshot_config_channel(adc_handle, ADC_LM35_CHANNEL, &config);
+
+    // 3. Crear el esquema de calibración moderno Line Fitting (Específico para ESP32)
+    adc_cali_line_fitting_config_t cali_config = {
+        .unit_id = ADC_UNIT,
+        .atten = ADC_ATTEN,
+        .bitwidth = ADC_BITWIDTH,
+    };
+    
+    esp_err_t ret = adc_cali_create_scheme_line_fitting(&cali_config, &cali_handle);
+    if (ret == ESP_OK) {
+        ESP_LOGI("ADC", "Calibración moderna (Line Fitting) inicializada con éxito.");
+    } else {
+        ESP_LOGW("ADC", "No se pudo inicializar la calibración por hardware (%s)", esp_err_to_name(ret));
+    }
+}
+
+/**
+ * @brief Lee el ADC, aplica la curva de calibración oficial y calcula °C reales
+ */
+// VIEJO
+float leer_temperatura_lm35(void) {
+    if (adc_handle == NULL) return 0.0f;
+    
+    uint32_t suma_raw = 0;
+    int muestras = 20;
+    
+    for (int i = 0; i < muestras; i++) {
+        int raw = 0;
+        adc_oneshot_read(adc_handle, ADC_LM35_CHANNEL, &raw);
+        suma_raw += raw;
+        esp_rom_delay_us(200);
+    }
+    
+    int promedio_raw = suma_raw / muestras;
+    int voltaje_mv = 0;
+
+    // Convertir el valor RAW (0-4095) a milivoltios reales con la API moderna
+    if (cali_handle != NULL) {
+        adc_cali_raw_to_voltage(cali_handle, promedio_raw, &voltaje_mv);
+    } else {
+        // Fallback en caso de que falle la calibración
+        voltaje_mv = (promedio_raw * 1750) / 4095;
+    }
+    
+    // LM35: 10 mV por cada 1 °C
+    return ((float)voltaje_mv / 10.0f) -2.0f;
+}
+
 /**
  * @brief HTTP GET /api/status : Devuelve la posición actual y el estado de la fuente
  */
 esp_err_t get_status_handler(httpd_req_t *req) {
-    char resp[128];
+    char resp[160];
     bool pwr = fuente_alimentacion_activa();
-    snprintf(resp, sizeof(resp), "{\"position\":%ld,\"power\":%s,\"peltier_duty\":%d}", 
-             (long)posicion_actual, pwr ? "true" : "false", peltier_duty_actual);
+    temperatura_actual = leer_temperatura_lm35();
+
+    snprintf(resp, sizeof(resp), 
+             "{\"position\":%ld,\"power\":%s,\"peltier_duty\":%d,\"temp\":%.1f}", 
+             (long)posicion_actual, pwr ? "true" : "false", peltier_duty_actual, temperatura_actual);
+             
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, resp);
     return ESP_OK;
@@ -431,6 +512,9 @@ void app_main(void) {
     // Configurar GPIO 17 como salida para controlar la Peltier
     init_peltier_pwm();
 
+    // Inicializar lectura analógica del LM35 en GPIO 32
+    init_adc_lm35();
+    
     // 4. Crear cola de comunicación y lanzar la tarea en el Core 1
     motor_queue = xQueueCreate(10, sizeof(int));
     xTaskCreatePinnedToCore(motor_task, "motor_task", 2048, NULL, 5, NULL, 1);
