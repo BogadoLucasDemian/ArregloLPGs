@@ -38,6 +38,27 @@
 #define WIFI_PASS       "12345678"
 #define MAX_STA_CONN    4
 
+// ============================================================================
+// PARÁMETROS DEL CONTROL LAZO CERRADO (PID)
+// ============================================================================
+static float target_temp = 25.0f;     // Temperatura objetivo (Setpoint por defecto)
+static bool control_pid_activo = false; // Estado del control automático
+
+// Ganancias del controlador PID (Ajustadas para la inercia térmica de la Peltier)
+#define Kp 10.0f   // Acción proporcional. Kc = 
+#define Ki 0.6f   // Acción integral. Ki = 
+#define Kd 0.0f    // Acción derivativa
+
+static float integral_error = 0.0f;
+static float prev_error = 0.0f;
+
+
+#define TAMANO_VENTANA 3
+
+static float ventana_promedio[TAMANO_VENTANA] = {0.0f};
+static int indice_ventana = 0;
+static bool ventana_llena = false;
+
 static const char *TAG = "MOTOR_CONTROL";
 
 static float temperatura_actual = 0.0f;
@@ -241,13 +262,13 @@ float leer_temperatura_lm35(void) {
     if (adc_handle == NULL) return 0.0f;
     
     uint32_t suma_raw = 0;
-    int muestras = 20;
+    int muestras = 40;
     
     for (int i = 0; i < muestras; i++) {
         int raw = 0;
         adc_oneshot_read(adc_handle, ADC_LM35_CHANNEL, &raw);
         suma_raw += raw;
-        esp_rom_delay_us(200);
+        esp_rom_delay_us(50);
     }
     
     int promedio_raw = suma_raw / muestras;
@@ -262,20 +283,42 @@ float leer_temperatura_lm35(void) {
     }
     
     // LM35: 10 mV por cada 1 °C
-    return ((float)voltaje_mv / 10.0f) -2.0f;
+    // return ((float)voltaje_mv / 10.0f) -2.0f;
+    float temp_instantanea = (float)voltaje_mv / 10.0f - 2.0f;
+
+    // 3. Filtro de Promedio Móvil (Ventana de 3)
+    ventana_promedio[indice_ventana] = temp_instantanea;
+    indice_ventana = (indice_ventana + 1) % TAMANO_VENTANA;
+
+    if (indice_ventana == 0) {
+        ventana_llena = true;
+    }
+
+    // Calcular el promedio de los valores almacenados en la ventana
+    float suma_ventana = 0.0f;
+    int limite = ventana_llena ? TAMANO_VENTANA : indice_ventana;
+
+    for (int i = 0; i < limite; i++) {
+        suma_ventana += ventana_promedio[i];
+    }
+
+    float temp_filtrada = suma_ventana / limite;
+
+    return temp_filtrada;
 }
 
 /**
  * @brief HTTP GET /api/status : Devuelve la posición actual y el estado de la fuente
  */
 esp_err_t get_status_handler(httpd_req_t *req) {
-    char resp[160];
+    char resp[190];
     bool pwr = fuente_alimentacion_activa();
     temperatura_actual = leer_temperatura_lm35();
 
     snprintf(resp, sizeof(resp), 
-             "{\"position\":%ld,\"power\":%s,\"peltier_duty\":%d,\"temp\":%.1f}", 
-             (long)posicion_actual, pwr ? "true" : "false", peltier_duty_actual, temperatura_actual);
+             "{\"position\":%ld,\"power\":%s,\"peltier_duty\":%d,\"temp\":%.1f,\"target\":%.1f,\"pid_active\":%s}", 
+             (long)posicion_actual, pwr ? "true" : "false", peltier_duty_actual, temperatura_actual,
+             target_temp, control_pid_activo ? "true" : "false");
              
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, resp);
@@ -399,27 +442,81 @@ void set_peltier_duty_percentage(uint8_t porcentaje) {
 }
 
 esp_err_t post_peltier_handler(httpd_req_t *req) {
-    char buf[32];
+    char buf[64];
     int ret = httpd_req_recv(req, buf, req->content_len);
     if (ret > 0) {
         buf[ret] = '\0';
-        int duty = 0;
-        if (sscanf(buf, "duty=%d", &duty) == 1) {
-            if (duty < 0) duty = 0;
-            if (duty > 100) duty = 100;
+        
+        float temp_req = 0.0f;
+        int enable_req = 0;
 
-            peltier_duty_actual = (uint8_t)duty;
-            set_peltier_duty_percentage(peltier_duty_actual);
+        // Recibe "target=35.0&enable=1" o "enable=0"
+        if (sscanf(buf, "target=%f&enable=%d", &temp_req, &enable_req) >= 1) {
+            control_pid_activo = (enable_req == 1);
             
-            ESP_LOGI(TAG, "PWM Peltier (GPIO 17) ajustado a: %d%%", peltier_duty_actual);
+            if (control_pid_activo) {
+                target_temp = temp_req;
+                ESP_LOGI(TAG, "Lazo cerrado ACTIVADO -> Temperatura objetivo: %.1f°C", target_temp);
+            } else {
+                peltier_duty_actual = 0;
+                set_peltier_duty_percentage(0);
+                integral_error = 0.0f; // Reiniciar integrador
+                ESP_LOGI(TAG, "Lazo cerrado DESACTIVADO -> Peltier OFF");
+            }
 
             httpd_resp_set_type(req, "application/json");
             httpd_resp_sendstr(req, "{\"status\":\"OK\"}");
             return ESP_OK;
         }
     }
-    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Parámetro inválido");
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Parámetros inválidos");
     return ESP_FAIL;
+}
+
+/**
+ * @brief Tarea en segundo plano que ejecuta el lazo cerrado PID de temperatura
+ */
+void temp_control_task(void *pvParameters) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000); // Se ejecuta cada 1 segundo
+
+    while (1) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+        // Solo calcula si el lazo cerrado está activado desde el frontend
+        if (control_pid_activo) {
+            temperatura_actual = leer_temperatura_lm35();
+            
+            // Error = Temperatura Objetivo - Temperatura Actual
+            float error = target_temp - temperatura_actual;
+
+            // 1. Término Proporcional
+            float P = Kp * error;
+
+            // 2. Término Integral (con anti-windup para no saturar)
+            integral_error += error;
+            if (integral_error > 100.0f) integral_error = 100.0f;
+            if (integral_error < -100.0f) integral_error = -100.0f;
+            float I = Ki * integral_error;
+
+            // 3. Término Derivativo
+            float D = Kd * (error - prev_error);
+            prev_error = error;
+
+            // Salida total calculada del PID
+            float output = P + I + D;
+
+            // Acotar la salida al rango 0% - 100%
+            if (output > 100.0f) output = 100.0f;
+            if (output < 0.0f) output = 0.0f;
+
+            peltier_duty_actual = (uint8_t)output;
+            set_peltier_duty_percentage(peltier_duty_actual);
+
+            ESP_LOGI(TAG, "PID -> Target: %.1f°C | Actual: %.1f°C | Err: %.1f | Duty: %d%%",
+                     target_temp, temperatura_actual, error, peltier_duty_actual);
+        }
+    }
 }
 
 /**
@@ -518,6 +615,8 @@ void app_main(void) {
     // 4. Crear cola de comunicación y lanzar la tarea en el Core 1
     motor_queue = xQueueCreate(10, sizeof(int));
     xTaskCreatePinnedToCore(motor_task, "motor_task", 2048, NULL, 5, NULL, 1);
+    // Crear la tarea del control de temperatura PID en el Core 1
+    xTaskCreatePinnedToCore(temp_control_task, "temp_control_task", 3072, NULL, 4, NULL, 1);
 
     // 5. Iniciar Wi-Fi y Servidor HTTP
     wifi_init_softap();

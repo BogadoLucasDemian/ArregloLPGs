@@ -417,7 +417,7 @@
         <div class="card">
             <div class="header">
                 <h1>Control de Temperatura</h1>
-                <p>Celda Peltier TEC1-12705 • PWM GPIO 17</p>
+                <p>Lazo Cerrado Automático (PID)</p>
             </div>
 
             <div class="pos-indicator" style="margin-top: 10px;">
@@ -425,22 +425,27 @@
             </div>
             
             <div class="form-group" style="margin-top: 15px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <label for="peltierRange" style="margin: 0;">Ciclo de trabajo (Duty):</label>
-                    <span id="peltierDutyVal" style="font-weight: 700; color: var(--success-color); font-size: 1.1rem;">0%</span>
+                <label for="targetTempInput">Temperatura Objetivo (°C):</label>
+                <div class="input-inline-group" style="margin-bottom: 15px;">
+                    <input type="number" id="targetTempInput" value="30.0" step="0.5" min="15" max="80">
                 </div>
-                
-                <input type="range" id="peltierRange" min="0" max="100" value="0" style="width: 100%; accent-color: var(--accent-blue); cursor: pointer;" oninput="document.getElementById('peltierDutyVal').innerText = this.value + '%'" onchange="enviarDutyPeltier(this.value)">
-                
-                <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">
-                    <span>0% (OFF)</span>
-                    <span>50%</span>
-                    <span>100% (MAX)</span>
+
+                <div class="control-row">
+                    <span style="font-weight: 500; font-size: 0.9rem;">Control Lazo Cerrado:</span>
+                    <label class="switch">
+                        <input type="checkbox" id="pidToggle" onchange="toggleControlPID(this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+                    <span style="font-size: 0.85rem; color: var(--text-secondary);">Potencia Salida (PWM):</span>
+                    <span id="peltierDutyVal" style="font-weight: 700; color: var(--success-color); font-size: 1.1rem;">0%</span>
                 </div>
             </div>
 
             <div id="peltierStatusBox" class="status-box status-idle">
-                Estado listo.
+                Control en espera.
             </div>
         </div>
     </section>
@@ -468,11 +473,10 @@
                 }
                 
                 if (data.peltier_duty !== undefined) {
-                    // Evita mover el slider mientras el usuario lo está arrastrando
-                    if (document.activeElement !== document.getElementById('peltierRange')) {
-                        document.getElementById('peltierRange').value = data.peltier_duty;
-                        document.getElementById('peltierDutyVal').innerText = data.peltier_duty + '%';
-                    }
+                    document.getElementById('peltierDutyVal').innerText = data.peltier_duty + '%';
+                }
+                if (data.pid_active !== undefined) {
+                    document.getElementById('pidToggle').checked = data.pid_active;
                 }
 
                 // Actualizar valor de temperatura si está presente en el JSON
@@ -575,28 +579,26 @@
     }
 
     // Función agregada para enviar el cambio de estado a la ESP32
-    function enviarDutyPeltier(valorDuty) {
+    function toggleControlPID(activado) {
+        const targetVal = parseFloat(document.getElementById('targetTempInput').value);
         const statusBox = document.getElementById('peltierStatusBox');
-        
+
         statusBox.className = 'status-box status-info';
-        statusBox.innerHTML = '<span class="spinner"></span> <span>Ajustando PWM a ' + valorDuty + '%...</span>';
+        statusBox.innerHTML = '<span class="spinner"></span> <span>Actualizando control...</span>';
 
         fetch('/api/peltier', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'duty=' + valorDuty
+            body: `target=${targetVal}&enable=${activado ? 1 : 0}`
         })
-        .then(res => {
-            if (!res.ok) throw new Error('Error en servidor');
-            return res.json();
-        })
-        .then(data => {
-            statusBox.className = 'status-box status-success';
-            statusBox.innerHTML = '✔ Potencia ajustada al ' + valorDuty + '%.';
+        .then(res => res.json())
+        .then(() => {
+            statusBox.className = activado ? 'status-box status-success' : 'status-box status-idle';
+            statusBox.innerHTML = activado ? `✔ Manteniendo ${targetVal}°C` : 'Peltier Apagada.';
         })
         .catch(() => {
             statusBox.className = 'status-box status-error';
-            statusBox.innerHTML = '✖ Error al actualizar el PWM.';
+            statusBox.innerHTML = '✖ Error al comunicarse con la ESP32.';
         });
     }
     
